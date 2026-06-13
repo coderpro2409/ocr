@@ -1,87 +1,78 @@
-# OCR Notebook: Low-Level Design
+# OCR Notebook: LLD
 
-> Version 1.0 - describes `OCR.ipynb` as it stands today.
-
-## 1. Architecture
-
-Three concrete steps and one branch:
+The whole pipeline:
 
 ```
 image_path
-    |
-    v
-[exists?] -- no --> raise FileNotFoundError
-    |
-    yes
-    |
-    v
+   |
+   v
+exists? --no--> raise FileNotFoundError
+   |
+   yes
+   v
 PIL.Image.open(image_path)
-    |
-    v
+   |
+   v
 pytesseract.image_to_string(image)
-    |
-    v
+   |
+   v
+print
+```
+
+That's it. There's nothing to architect.
+
+## The notebook
+
+Five cells. Two are markdown (the intro and the section header for the run cell). One is the optional Colab install. The other two are the markdown "Colab-only" header and the actual OCR cell.
+
+The OCR cell:
+
+```python
+import os
+import pytesseract
+from PIL import Image
+
+image_path = "image.jpg"
+
+if not os.path.exists(image_path):
+    raise FileNotFoundError(f"Image not found: {image_path}")
+
+extracted_text = pytesseract.image_to_string(Image.open(image_path))
+
+print("----- Extracted Text -----")
 print(extracted_text)
 ```
 
-## 2. Files in the repo
+Fifteen lines including the print. If I add a `lang=` parameter someday, it becomes sixteen.
 
-| File | Purpose |
-|---|---|
-| `OCR.ipynb` | The notebook itself. Three markdown cells and two code cells |
-| `requirements.txt` | `pytesseract`, `pillow` |
-| `README.md` | Per-OS install steps, Colab instructions, troubleshooting for `TesseractNotFoundError` |
-| `LICENSE` | License |
+## Dependencies
 
-## 3. Notebook cells
+System: Tesseract 4 or 5, installed via the OS package manager (`brew`, `apt`) or the UB Mannheim Windows build.
 
-| Cell ID | Type | Contents |
-|---|---|---|
-| `intro` | markdown | Title, setup table per OS, link to `requirements.txt` |
-| `colab-setup` | markdown | "Colab-only install" header |
-| `colab-install` | code | `!apt-get install -y tesseract-ocr` and `!pip install pytesseract pillow` |
-| `run-header` | markdown | "Run OCR on an image" |
-| `ocr-run` | code | The four steps in section 1 |
+Python: `pytesseract`, `Pillow`. Both pinned to "latest stable" because neither has surprising minor-version churn.
 
-## 4. Dependencies
+Python version: 3.8 or above. Nothing here uses anything newer.
 
-| Layer | Component | Version range |
-|---|---|---|
-| System | Tesseract OCR binary | 4.x or 5.x (any modern build) |
-| Python | `pytesseract` | latest stable |
-| Python | `Pillow` | latest stable |
-| Runtime | Python | 3.8 and above |
+## Where it breaks
 
-## 5. Failure modes
+`image_path` doesn't exist: the explicit check raises `FileNotFoundError` with the path included. This is the most common user error; the default behavior (PIL raising deep inside the call) is unhelpful.
 
-| Condition | Behavior | User action |
-|---|---|---|
-| `image_path` does not exist | `FileNotFoundError` is raised by the notebook (explicit check) | Verify the path; for Colab, re-upload and use `/content/<file>` |
-| Tesseract binary not on `PATH` | `pytesseract.pytesseract.TesseractNotFoundError` from the OCR call | Install via the OS package manager, or set `pytesseract.pytesseract.tesseract_cmd` to the install path |
-| Image file is unsupported by PIL | PIL raises `UnidentifiedImageError` | Convert to PNG or JPEG before passing in |
-| Image is blank or very low quality | Output is an empty string or garbage text | Out of scope; preprocess externally |
+Tesseract binary not on PATH: `pytesseract.pytesseract.TesseractNotFoundError`. The fix is either an OS-level install or setting `pytesseract.pytesseract.tesseract_cmd`. README covers both.
 
-## 6. Security and privacy
+Image PIL can't open (HEIC, TIFF without proper codec): `UnidentifiedImageError`. Convert to PNG or JPEG first.
 
-- The notebook reads only the file at `image_path`. No network calls.
-- No environment variables are read.
-- Nothing is written to disk by the OCR step itself.
+Image is unreadably low quality: empty string or garbage. Out of scope.
 
-## 7. Cross-platform considerations
+## Privacy
 
-| OS | Tesseract install | Path override needed? |
-|---|---|---|
-| macOS | `brew install tesseract` | No |
-| Ubuntu / Debian | `sudo apt-get install -y tesseract-ocr` | No |
-| Windows | UB Mannheim installer | Often yes: set `pytesseract.pytesseract.tesseract_cmd` to `C:\Program Files\Tesseract-OCR\tesseract.exe` |
-| Google Colab | Run the `colab-install` cell | No |
+No network calls. No env vars read. Nothing written to disk by the OCR step (the image came from disk, the text goes to stdout). Whatever you OCR stays on the machine.
 
-## 8. Extension hooks
+## If someone extends this
 
-If a future contributor wants to extend the notebook without breaking the one-screen contract:
+Three extensions stay within ten extra lines:
 
-1. Add a `lang` parameter to `pytesseract.image_to_string(image, lang="eng+hin")` (one new keyword).
-2. Wrap the run cell in `def ocr(image_path): ...` and call it once. Keeps the notebook one cell longer.
-3. Loop over a folder of images. The current cell becomes a function call inside a `for` loop.
+1. `lang="eng+hin"` keyword to `image_to_string`.
+2. Wrap the run cell in `def ocr(path): ...` and call it once.
+3. Loop over a folder: `for f in os.listdir(folder): ocr(f)`.
 
-Each option stays within ten additional lines of code.
+Anything beyond that (CLI, batch with progress, multi-format input) belongs in a different project.
