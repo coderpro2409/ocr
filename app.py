@@ -7,6 +7,8 @@ This is the deployable web version of the project's notebook pipeline
 provides the upload UI (replacing the desktop tkinter dialog).
 """
 
+import os
+
 import gradio as gr
 import pytesseract
 from PIL import Image
@@ -35,4 +37,4 @@ demo = gr.Interface(
 )
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0")
+    demo.launch(server_name="0.0.0.0", server_port=int(os.getenv("PORT", "7860")))
