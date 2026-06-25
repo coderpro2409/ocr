@@ -33,7 +33,7 @@ demo = gr.Interface(
     outputs=gr.Textbox(label="Extracted text", lines=15),
     title="OCR: Image to Text",
     description="Upload an image and extract its text with Tesseract OCR.",
-    allow_flagging="never",
+    flagging_mode="never",
 )
 
 if __name__ == "__main__":
